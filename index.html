@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Icon Creator</title>
+<style>
+:root{color-scheme:dark}body{margin:0;font:15px system-ui,sans-serif;background:#14172b;color:#fff;text-align:center;padding:24px}
+p.s{color:#9aa3c7;margin:6px 0 18px}#drop{display:block;max-width:520px;margin:0 auto;border:2px dashed #3d5afe;border-radius:14px;padding:26px;cursor:pointer}
+#drop:hover{background:#1e2240}input{display:none}button{background:#3d5afe;color:#fff;border:0;border-radius:8px;padding:8px 14px;cursor:pointer;font:inherit}
+#again{background:#2a2f55;margin:18px 8px}#grid{display:flex;flex-wrap:wrap;gap:12px;justify-content:center}
+.card{background:#1e2240;border-radius:12px;padding:10px;width:176px}canvas{background:#1e2240;border-radius:8px}.card p{color:#9aa3c7;font-size:12px;min-height:32px;margin:6px 0}
+</style></head><body>
+<h1>Icon Creator</h1>
+<p class="s">Déposez une image : 5 icônes contour 128×128 (PNG transparent) vous sont proposées. Tout reste dans votre navigateur.</p>
+<label id="drop">📁 Cliquez ou glissez une image ici<input type="file" id="f" accept="image/*"></label>
+<p class="s" id="load">Chargement d'OpenCV (≈ 8 Mo)…</p>
+<div id="bar" hidden><button id="again">↻ Relancer (5 nouvelles)</button><span class="s" id="st"></span></div>
+<div id="grid"></div>
+<script src="https://docs.opencv.org/4.5.2/opencv.js"></script>
+<script>
+const S=512,$=i=>document.getElementById(i),T=[];let img,P,name='icone',round=0;const seen=new Set();
+const K=a=>(T.push(a),a),Mk=()=>K(new cv.Mat()),Sz=r=>{r=2*Math.max(1,Math.round(r))+1;return new cv.Size(r,r)};
+const el=r=>K(cv.getStructuringElement(cv.MORPH_ELLIPSE,Sz(r)));
+const dil=(m,r)=>{const o=Mk();cv.dilate(m,o,el(r));return o},ero=(m,r)=>{const o=Mk();cv.erode(m,o,el(r));return o};
+const blur=(m,s)=>{const o=Mk();cv.GaussianBlur(m,o,new cv.Size(0,0),s);return o},inv=m=>{const o=Mk();cv.bitwise_not(m,o);return o};
+function small(m,min){const l=Mk(),st=Mk(),c=Mk(),n=cv.connectedComponentsWithStats(m,l,st,c,8,cv.CV_32S),k=[];
+ for(let i=0;i<n;i++)k[i]=i>0&&st.intAt(i,4)>=min;
+ const L=l.data32S,o=new Uint8Array(S*S);for(let i=0;i<o.length;i++)o[i]=k[L[i]]?255:0;return K(cv.matFromArray(S,S,cv.CV_8U,o))}
+function edges(rgb,reg,d,r){const lab=Mk();cv.cvtColor(rgb,lab,cv.COLOR_RGB2Lab);const ch=K(new cv.MatVector());cv.split(lab,ch);
+ const lo=Math.max(8,140*(1-d)),e=K(cv.Mat.zeros(S,S,cv.CV_8U));
+ for(let i=0;i<3;i++){const q=Mk();cv.Canny(blur(K(ch.get(i)),S*.004),q,lo,lo*2.2);cv.bitwise_or(e,q,e)}
+ cv.bitwise_and(e,reg,e);const s=small(dil(e,S*.004),S*S*.004*(1.2-d)),c=Mk();cv.morphologyEx(s,c,cv.MORPH_CLOSE,el(S*.01));return dil(ero(c,S*.004),r)}
+function prep(){const sc=Math.min(1,800/Math.max(img.width,img.height)),w=Math.round(img.width*sc),h=Math.round(img.height*sc),c=document.createElement('canvas');c.width=w;c.height=h;
+ const x=c.getContext('2d');x.drawImage(img,0,0,w,h);const d=x.getImageData(0,0,w,h).data,B=[[],[],[]];let al=255;
+ for(let i=0;i<w*h;i++)al=Math.min(al,d[i*4+3]);
+ const ed=(px,py)=>{const j=(py*w+px)*4;for(let k=0;k<3;k++)B[k].push(d[j+k])};
+ for(let i=0;i<w;i++){ed(i,0);ed(i,h-1)}for(let i=0;i<h;i++){ed(0,i);ed(w-1,i)}
+ const bg=B.map(a=>a.sort((p,q)=>p-q)[a.length>>1]),k=S*20/24/Math.max(w,h),nw=w*k,nh=h*k,s=document.createElement('canvas');s.width=s.height=S;const g=s.getContext('2d');
+ if(al>=250){g.fillStyle=`rgb(${bg})`;g.fillRect(0,0,S,S)}g.imageSmoothingQuality='high';g.drawImage(c,(S-nw)/2,(S-nh)/2,nw,nh);
+ P={d:g.getImageData(0,0,S,S),alpha:al<250,bg}}
+function render(v){try{
+ const src=K(cv.matFromImageData(P.d)),rgb=Mk();cv.cvtColor(src,rgb,cv.COLOR_RGBA2RGB);let m=Mk();
+ if(P.alpha){const ch=K(new cv.MatVector());cv.split(src,ch);cv.threshold(K(ch.get(3)),m,128,255,cv.THRESH_BINARY)}
+ else{const lab=Mk(),bl=Mk();cv.cvtColor(rgb,lab,cv.COLOR_RGB2Lab);cv.cvtColor(K(cv.matFromArray(1,1,cv.CV_8UC3,P.bg)),bl,cv.COLOR_RGB2Lab);
+  const a=lab.data,b=bl.data,f=new Float32Array(S*S);
+  for(let i=0;i<f.length;i++)f[i]=Math.hypot((a[i*3]-b[0])*100/255,a[i*3+1]-b[1],a[i*3+2]-b[2]);
+  const t=Mk();cv.threshold(blur(K(cv.matFromArray(S,S,cv.CV_32F,f)),S*.003),t,v.thr,255,cv.THRESH_BINARY);t.convertTo(m,cv.CV_8U)}
+ const cl=Mk();cv.morphologyEx(m,cl,cv.MORPH_CLOSE,el(S*.006));m=small(cl,S*S*.002);
+ m=inv(small(inv(m),S*S*(v.fill?.5:.004)));m=small(m,S*S*.002);
+ const sm=blur(m,S*.006*v.smooth);m=Mk();cv.threshold(sm,m,127,255,cv.THRESH_BINARY);
+ const r=v.stroke/24*S/2;let o;
+ if(v.mode=='silhouette')o=m;
+ else if(v.mode=='edges')o=edges(rgb,K(new cv.Mat(S,S,cv.CV_8U,new cv.Scalar(255))),Math.max(v.detail,.3),r);
+ else{o=Mk();cv.subtract(dil(m,r),ero(m,r),o);if(v.detail>0)cv.bitwise_or(o,edges(rgb,ero(m,r*2.2),v.detail,r),o)}
+ const s=Mk();cv.resize(o,s,new cv.Size(128,128),0,0,cv.INTER_AREA);
+ const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d'),id=g.createImageData(128,128);
+ for(let i=0;i<16384;i++)id.data.set([255,255,255,s.data[i]],i*4);g.putImageData(id,0,0);return c
+}finally{T.forEach(x=>x.delete());T.length=0}}
+const PR=[{mode:'outline',detail:0,stroke:2,smooth:1,fill:false},{mode:'outline',detail:.5,stroke:2,smooth:1,fill:false},{mode:'outline',detail:.7,stroke:1.5,smooth:1,fill:true},
+ {mode:'silhouette',detail:0,stroke:2,smooth:1,fill:true},{mode:'edges',detail:.6,stroke:1.5,smooth:1,fill:false}].map(p=>({...p,thr:12}));
+const pick=a=>a[Math.random()*a.length|0];
+function rnd(){const m=Math.random(),mode=m<.7?'outline':m<.8?'silhouette':'edges';
+ return{mode,detail:mode=='edges'?pick([.4,.6,.8]):pick([0,.3,.5,.7,.9]),stroke:pick([1.25,1.5,1.75,2,2.5]),smooth:pick([.5,1,1.5,2.5]),thr:pick([6,9,12,20,30]),fill:Math.random()<.4}}
+function batch(){const o=round?[]:[...PR];while(o.length<5){const v=rnd(),k=JSON.stringify(v);if(!seen.has(k)){seen.add(k);o.push(v)}}round++;return o}
+const FR={outline:'contour',silhouette:'forme pleine',edges:'traits'};
+const desc=v=>`${FR[v.mode]} · trait ${v.stroke}`+(v.mode=='outline'&&v.detail?` · détails ${v.detail}`:'')+(v.mode=='edges'?` · sensibilité ${v.detail}`:'')+(v.fill&&v.mode=='outline'?' · rempli':'');
+async function gen(){if(!img||!window.cv||!cv.Mat)return;$('st').textContent='Calcul…';await new Promise(r=>setTimeout(r,40));$('grid').innerHTML='';
+ batch().forEach((v,i)=>{const c=render(v),d=document.createElement('div'),p=document.createElement('p'),b=document.createElement('button');d.className='card';c.style.width=c.style.height='160px';
+  p.textContent=desc(v);b.textContent='Télécharger '+(i+1);b.onclick=()=>{const a=document.createElement('a');a.href=c.toDataURL();a.download=name+'.png';a.click()};d.append(c,p,b);$('grid').append(d)});
+ $('st').textContent='Série n°'+round;$('bar').hidden=false}
+function load(f){if(!f)return;name=f.name.replace(/\.[^.]+$/,'');const i=new Image();i.onload=()=>{img=i;prep();round=0;seen.clear();gen()};i.src=URL.createObjectURL(f)}
+$('f').onchange=e=>load(e.target.files[0]);$('again').onclick=gen;
+['dragover','drop'].forEach(t=>document.addEventListener(t,e=>{e.preventDefault();if(t=='drop')load(e.dataTransfer.files[0])}));
+const w=setInterval(()=>{if(window.cv&&cv.Mat){clearInterval(w);$('load').hidden=true;gen()}},150);
+</script></body></html>
